@@ -8,6 +8,8 @@ import LoginScreen from './screens/LoginScreen';
 import SignupScreen from './screens/SignupScreen';
 import DashboardScreen from './screens/DashboardScreen';
 import VideoPlayerScreen from './screens/VideoPlayerScreen';
+import { getToken } from './services/auth';
+import { View, ActivityIndicator } from 'react-native';
 
 const Stack = createStackNavigator();
 
@@ -34,12 +36,41 @@ function AppStack() {
 }
 
 export default function App() {
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [userToken, setUserToken] = React.useState(null);
+
+  React.useEffect(() => {
+    const checkToken = async () => {
+      const token = await getToken();
+      setUserToken(token);
+      setIsLoading(false);
+    };
+    checkToken();
+  }, []);
+
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#0f0f0f', justifyContent: 'center' }}>
+        <ActivityIndicator size="large" color="#ff0050" />
+      </View>
+    );
+  }
+
   return (
     <NavigationContainer>
       <StatusBar style="light" />
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="Auth" component={AuthStack} />
-        <Stack.Screen name="App" component={AppStack} />
+      <Stack.Navigator screenOptions={{ headerShown: false, animation: 'fade_from_bottom' }}>
+        {userToken ? (
+          <>
+            <Stack.Screen name="App" component={AppStack} />
+            <Stack.Screen name="Auth" component={AuthStack} />
+          </>
+        ) : (
+          <>
+            <Stack.Screen name="Auth" component={AuthStack} />
+            <Stack.Screen name="App" component={AppStack} />
+          </>
+        )}
       </Stack.Navigator>
     </NavigationContainer>
   );
