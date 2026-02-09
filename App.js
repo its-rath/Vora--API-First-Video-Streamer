@@ -8,6 +8,7 @@ import LoginScreen from './screens/LoginScreen';
 import SignupScreen from './screens/SignupScreen';
 import DashboardScreen from './screens/DashboardScreen';
 import VideoPlayerScreen from './screens/VideoPlayerScreen';
+import FavoritesScreen from './screens/FavoritesScreen';
 import { getToken } from './services/auth';
 import { View, ActivityIndicator } from 'react-native';
 
@@ -31,6 +32,7 @@ function AppStack() {
     }}>
       <Stack.Screen name="Dashboard" component={DashboardScreen} options={{ headerShown: false }} />
       <Stack.Screen name="VideoPlayer" component={VideoPlayerScreen} options={{ title: 'Playing Video' }} />
+      <Stack.Screen name="Favorites" component={FavoritesScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 }

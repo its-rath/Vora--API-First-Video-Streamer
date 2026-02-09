@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, ActivityIndicator, TextInput, LayoutAnimation, Platform, UIManager, RefreshControl } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import api from '../services/api';
 import { deleteToken } from '../services/auth';
 
@@ -11,6 +12,7 @@ const DashboardScreen = ({ navigation }) => {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [user, setUser] = useState(null);
+    const [favorites, setFavorites] = useState(new Set());
 
     if (Platform.OS === 'android') {
         if (UIManager.setLayoutAnimationEnabledExperimental) {
@@ -24,7 +26,7 @@ const DashboardScreen = ({ navigation }) => {
 
     const fetchInitialData = async () => {
         setLoading(true);
-        await Promise.all([fetchVideos(), fetchUser()]);
+        await Promise.all([fetchVideos(), fetchUser(), fetchFavorites()]);
         setLoading(false);
     };
 
@@ -34,6 +36,45 @@ const DashboardScreen = ({ navigation }) => {
             setUser(response.data);
         } catch (error) {
             console.error('User fetch error', error);
+        }
+    };
+
+    const fetchFavorites = async () => {
+        try {
+            const response = await api.get('/videos/favorites');
+            const favIds = new Set(response.data.map(v => v.id));
+            setFavorites(favIds);
+        } catch (error) {
+            console.error('Favorites fetch error', error);
+        }
+    };
+
+    const toggleFavorite = async (video) => {
+        const isFav = favorites.has(video.id);
+
+        // Optimistic update
+        setFavorites(prev => {
+            const next = new Set(prev);
+            if (isFav) next.delete(video.id);
+            else next.add(video.id);
+            return next;
+        });
+
+        try {
+            if (isFav) {
+                await api.delete(`/videos/favorites/${video.id}`);
+            } else {
+                await api.post(`/videos/favorites/${video.id}`);
+            }
+        } catch (error) {
+            console.error('Toggle favorite error', error);
+            // Revert on error
+            setFavorites(prev => {
+                const next = new Set(prev);
+                if (isFav) next.add(video.id);
+                else next.delete(video.id);
+                return next;
+            });
         }
     };
 
@@ -84,6 +125,16 @@ const DashboardScreen = ({ navigation }) => {
                     style={styles.gradient}
                 />
             </View>
+            <TouchableOpacity
+                style={styles.favBtn}
+                onPress={() => toggleFavorite(item)}
+            >
+                <Ionicons
+                    name={favorites.has(item.id) ? "heart" : "heart-outline"}
+                    size={24}
+                    color={favorites.has(item.id) ? "#ff0050" : "#fff"}
+                />
+            </TouchableOpacity>
             <View style={styles.cardContent}>
                 <Text style={styles.title}>{item.title}</Text>
                 <Text style={styles.desc} numberOfLines={2}>{item.description}</Text>
@@ -100,9 +151,14 @@ const DashboardScreen = ({ navigation }) => {
                     </Text>
                     <Text style={styles.headerTitle}>Vora</Text>
                 </View>
-                <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
-                    <Text style={styles.logout}>Logout</Text>
-                </TouchableOpacity>
+                <View style={styles.headerActions}>
+                    <TouchableOpacity onPress={() => navigation.navigate('Favorites')} style={styles.iconBtn}>
+                        <Ionicons name="heart" size={24} color="#fff" />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
+                        <Text style={styles.logout}>Logout</Text>
+                    </TouchableOpacity>
+                </View>
             </View>
 
             <View style={styles.searchContainer}>
@@ -115,29 +171,31 @@ const DashboardScreen = ({ navigation }) => {
                 />
             </View>
 
-            {loading ? (
-                <View style={styles.loaderContainer}>
-                    <ActivityIndicator size="large" color="#ff0050" />
-                    <Text style={styles.loaderText}>Syncing your feed...</Text>
-                </View>
-            ) : (
-                <FlatList
-                    data={filteredVideos}
-                    renderItem={renderVideo}
-                    keyExtractor={(item) => item.id}
-                    contentContainerStyle={styles.list}
-                    showsVerticalScrollIndicator={false}
-                    refreshControl={
-                        <RefreshControl
-                            refreshing={refreshing}
-                            onRefresh={onRefresh}
-                            tintColor="#ff0050"
-                            colors={['#ff0050']}
-                        />
-                    }
-                />
-            )}
-        </View>
+            {
+                loading ? (
+                    <View style={styles.loaderContainer}>
+                        <ActivityIndicator size="large" color="#ff0050" />
+                        <Text style={styles.loaderText}>Syncing your feed...</Text>
+                    </View>
+                ) : (
+                    <FlatList
+                        data={filteredVideos}
+                        renderItem={renderVideo}
+                        keyExtractor={(item) => item.id}
+                        contentContainerStyle={styles.list}
+                        showsVerticalScrollIndicator={false}
+                        refreshControl={
+                            <RefreshControl
+                                refreshing={refreshing}
+                                onRefresh={onRefresh}
+                                tintColor="#ff0050"
+                                colors={['#ff0050']}
+                            />
+                        }
+                    />
+                )
+            }
+        </View >
     );
 };
 
@@ -166,6 +224,14 @@ const styles = StyleSheet.create({
         fontWeight: '900',
         color: '#fff',
     },
+    headerActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    iconBtn: {
+        marginRight: 15,
+        padding: 5,
+    },
     logoutBtn: {
         backgroundColor: 'rgba(255, 0, 80, 0.1)',
         paddingHorizontal: 12,
@@ -176,6 +242,18 @@ const styles = StyleSheet.create({
         color: '#ff0050',
         fontWeight: 'bold',
         fontSize: 12,
+    },
+    favBtn: {
+        position: 'absolute',
+        top: 15,
+        right: 15,
+        zIndex: 10,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     searchContainer: {
         paddingHorizontal: 20,
